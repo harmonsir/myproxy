@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <title>配置管理 Proxy Config</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            padding: 2rem;
+            max-width: 960px;
+            margin: auto;
+            background: #fdfcf7;
+            color: #444;
+        }
+
+        h2, h3 {
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: #7db7d1;
+            margin-bottom: 2rem;
+        }
+
+        .form-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 320px;
+        }
+
+        .full-width {
+            margin-top: 2rem;
+        }
+
+        label {
+            display: block;
+            margin-top: 1em;
+            font-weight: bold;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 0.6em;
+            margin-top: 0.3em;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background-color: #fdfdf9;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: #9dc6df;
+            box-shadow: 0 0 3px #9dc6df66;
+            outline: none;
+        }
+
+        button {
+            margin-top: 2em;
+            padding: 0.6em 1.2em;
+            font-size: 1rem;
+            border: none;
+            background-color: #9dc6df;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #7db7d1;
+        }
+
+        .message {
+            margin-top: 1em;
+            font-weight: bold;
+            color: #67a06d;
+            text-align: center;
+        }
+
+        /* 在小屏幕自动变为垂直排列 */
+        @media (max-width: 700px) {
+            .form-grid {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <h2>代理配置管理 Proxy Configuration</h2>
+
+    <form @submit.prevent="saveConfig">
+        <!-- 系统设置 -->
+        <label>启用 Windows 代理 (Enable Windows Proxy):
+            <select v-model="config.enable_windows_proxy">
+                <option :value="true">是 (Yes)</option>
+                <option :value="false">否 (No)</option>
+            </select>
+        </label>
+
+        <!-- 主体两列 -->
+        <div class="form-grid">
+            <!-- 本地配置 -->
+            <div class="col">
+                <h3>本地代理配置</h3>
+
+                <label>本地模式 (Local Mode):
+                    <select v-model="config.local_mode">
+                        <option value="http">HTTP</option>
+                        <option value="socks5">SOCKS5</option>
+                    </select>
+                </label>
+
+                <label>监听地址 (Listen Address):
+                    <input placeholder="例如 0.0.0.0 (e.g. 0.0.0.0)" v-model="config.listen_on"/>
+                </label>
+
+                <label>监听端口 (Listen Port):
+                    <input type="number" v-model.number="config.listen_port"/>
+                </label>
+            </div>
+
+            <!-- 远端配置 -->
+            <div class="col">
+                <h3>远端代理配置</h3>
+
+                <label>远端模式 (Remote Mode):
+                    <select v-model="config.remote_mode">
+                        <option value="http">HTTP</option>
+                        <option value="socks5">SOCKS5</option>
+                    </select>
+                </label>
+
+                <label>远端 IP (Remote IP):
+                    <input v-model="config.default_target.ip"/>
+                </label>
+
+                <label>远端端口 (Remote Port):
+                    <input type="number" v-model.number="config.default_target.port"/>
+                </label>
+            </div>
+        </div>
+
+        <!-- 单栏设置 -->
+        <div class="full-width">
+            <label>IP 白名单 (IP Whitelist, ipmap):
+                <textarea placeholder="一行一个 IP (One IP per line)" rows="4" v-model="ipmapText"></textarea>
+            </label>
+
+            <label>中国 IP 网段列表 (China IP Ranges URL):
+                <input placeholder="http://..." v-model="config.china_ips"/>
+            </label>
+        </div>
+
+        <button type="submit">保存配置 (Save Configuration)</button>
+    </form>
+
+    <div class="message" v-if="message">{{ message }}</div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted } = Vue
+
+    createApp({
+      setup() {
+        const config = ref({
+          enable_windows_proxy: false,
+          local_mode: "http",
+          listen_on: "0.0.0.0",
+          listen_port: 1080,
+          remote_mode: "socks5",
+          default_target: { ip: "", port: 0 },
+          ipmap: [],
+          china_ips: ""
+        })
+        const ipmapText = ref("")
+        const message = ref("")
+
+        const loadConfig = async () => {
+          try {
+            const res = await fetch("/api/config")
+            const data = await res.json()
+            if (!data.default_target) data.default_target = { ip: "", port: 0 }
+            if (!data.ipmap) data.ipmap = []
+            config.value = data
+            ipmapText.value = data.ipmap.join("\n")
+          } catch (err) {
+            message.value = "加载配置失败 (Failed to load configuration)"
+          }
+        }
+
+        const saveConfig = async () => {
+          config.value.ipmap = ipmapText.value.split("\n").map(s => s.trim()).filter(Boolean)
+          const res = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(config.value)
+          })
+          message.value = await res.text()
+        }
+
+        onMounted(loadConfig)
+
+        return { config, ipmapText, message, saveConfig }
+      }
+    }).mount("#app")
+</script>
+</body>
+</html>
