@@ -1,0 +1,62 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go inside Docker
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}":/app \
+            -w /app \
+            -e GOOS=windows \
+            -e GOARCH=amd64 \
+            -e CGO_ENABLED=0 \
+            golang:alpine \
+            /bin/sh -c "\
+              go mod tidy && \
+              go mod download && \
+              go build -ldflags='-s -w -H=windowsgui' -o proxy.exe \
+            "
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxy.exe
+          path: proxy.exe
+
+  release:
+    name: Publish Latest Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: proxy.exe
+          path: .
+
+      - name: Create or update latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Release
+          body: "自动构建的最新版本"
+          files: proxy.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
