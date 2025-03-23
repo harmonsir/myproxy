@@ -26,6 +26,7 @@ func getChainDialer() (proxy.Dialer, error) {
 
 // dialTarget 根据目标地址判断是直连还是通过链式代理转发
 func dialTarget(target string) (net.Conn, error) {
+	//log.Printf("🎯 Direct target matched: %s", target)
 	if isDirectTarget(target) {
 		log.Printf("dialTarget %s -> Direct", target)
 		return net.Dial("tcp", target)

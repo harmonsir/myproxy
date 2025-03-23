@@ -27,7 +27,6 @@ type Config struct {
 }
 
 var config Config
-var directIPMap map[string]bool
 
 // loadConfig 从用户目录下加载 YAML 配置文件
 func loadConfig() error {
@@ -67,11 +66,13 @@ func initChinaIPs() {
 func isDirectTarget(host string) bool {
 	hostOnly, _, err := net.SplitHostPort(host)
 	if err != nil {
-		hostOnly = host
+		hostOnly = host // fallback to full string if no port
 	}
+
 	if ip := net.ParseIP(hostOnly); ip != nil {
-		return directIPMap[ip.String()]
+		return isIPInRanges(ip)
 	}
+
 	// 如果是域名，则解析 DNS
 	ips, err := net.LookupIP(hostOnly)
 	if err != nil {
