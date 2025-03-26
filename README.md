@@ -12,7 +12,7 @@ SwitchyOmega 已经太老了，用GPT写个proxy做Window下面的全局代理�
 
 ```
 set CGO_ENABLED=0
-go build -ldflags="-s -w" -ldflags="-H=windowsgui"
+go build -ldflags="-s -w -H=windowsgui"
 ```
 
 ### config

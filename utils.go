@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"golang.org/x/sys/windows/registry"
 	"io"
 	"log"
 	"net/http"
 	"os/exec"
+	"syscall"
 )
 
 // transfer 在两个连接之间传输数据
@@ -24,56 +26,107 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
+// SetAllProxies 启用 WinHTTP 和系统注册表代理
+func SetAllProxies() {
+	startWindowsProxy()
+	enableWindowsSystemProxy()
+}
+
+// ClearAllProxies 关闭系统代理并重置 WinHTTP 代理
+func ClearAllProxies() {
+	disableWindowsSystemProxy()
+	resetWindowsProxy()
+}
+
+// SetProxyExceptions 设置例外的域名走直连
+func SetProxyExceptions() {
+	setProxyOverride()
+}
+
 func startWindowsProxy() {
-	proxyAddr := "127.0.0.1:" + fmt.Sprintf("%d", config.ListenPort)
+	proxyAddr := fmt.Sprintf("127.0.0.1:%d", config.ListenPort)
 	cmd := exec.Command("netsh", "winhttp", "set", "proxy", proxyAddr)
+
+	// 隐藏 cmd 窗口
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true,
+	}
+
 	if err := cmd.Run(); err != nil {
-		log.Printf("设置 Windows 代理失败: %v", err)
+		log.Printf("设置 Windows WinHTTP 代理失败: %v", err)
 	} else {
-		log.Printf("成功设置 Windows 代理为: %s", proxyAddr)
+		log.Printf("成功设置 WinHTTP 代理为: %s", proxyAddr)
+	}
+}
+
+func resetWindowsProxy() {
+	cmd := exec.Command("netsh", "winhttp", "reset", "proxy")
+
+	// 隐藏命令提示符窗口
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true,
+	}
+
+	if err := cmd.Run(); err != nil {
+		log.Printf("重置 WinHTTP 代理失败: %v", err)
+	} else {
+		log.Println("WinHTTP 代理已重置为默认（无代理）")
 	}
 }
 
 func enableWindowsSystemProxy() {
 	proxyAddress := fmt.Sprintf("127.0.0.1:%d", config.ListenPort)
 
-	// 启用代理：ProxyEnable 设为 1
-	cmd := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("Failed to enable ProxyEnable: %v, output: %s", err, output)
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
+	if err != nil {
+		log.Printf("打开注册表键失败: %v", err)
+		return
+	}
+	defer key.Close()
+
+	if err := key.SetDWordValue("ProxyEnable", 1); err != nil {
+		log.Printf("设置 ProxyEnable 失败: %v", err)
 	} else {
 		trayState.Update(func(s *TrayStatus) { s.SysProxy = true })
-		log.Printf("ProxyEnable set to 1")
+		log.Printf("ProxyEnable 设置为 1")
 	}
 
-	// 设置代理服务器地址：ProxyServer
-	cmd = exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyServer", "/t", "REG_SZ", "/d", proxyAddress, "/f")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("Failed to set ProxyServer: %v, output: %s", err, output)
+	if err := key.SetStringValue("ProxyServer", proxyAddress); err != nil {
+		log.Printf("设置 ProxyServer 失败: %v", err)
 	} else {
-		log.Printf("ProxyServer set to %s", proxyAddress)
+		log.Printf("ProxyServer 设置为 %s", proxyAddress)
 	}
 }
 
 func disableWindowsSystemProxy() {
-	// 启用代理：ProxyEnable 设为 1
-	cmd := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("Failed to disable ProxyEnable: %v, output: %s", err, output)
+	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
+	if err != nil {
+		log.Printf("打开注册表键失败: %v", err)
+		return
+	}
+	defer key.Close()
+
+	if err := key.SetDWordValue("ProxyEnable", 0); err != nil {
+		log.Printf("禁用 ProxyEnable 失败: %v", err)
 	} else {
 		trayState.Update(func(s *TrayStatus) { s.SysProxy = false })
-		log.Printf("ProxyEnable set to 0")
+		log.Printf("ProxyEnable 设置为 0")
 	}
 }
 
 func setProxyOverride() {
-	// 例外列表，包含局域网 (<local>) 以及指定域名
 	bypass := "<local>;*.pylab.me;*.trip2w.com"
-	cmd := exec.Command("reg", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, "/v", "ProxyOverride", "/t", "REG_SZ", "/d", bypass, "/f")
-	output, err := cmd.CombinedOutput()
+
+	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
 	if err != nil {
-		log.Printf("Failed to set ProxyOverride: %v, output: %s", err, output)
+		log.Printf("打开注册表键失败: %v", err)
+		return
+	}
+	defer key.Close()
+
+	if err := key.SetStringValue("ProxyOverride", bypass); err != nil {
+		log.Printf("设置 ProxyOverride 失败: %v", err)
 	} else {
-		log.Printf("ProxyOverride set to: %s", bypass)
+		log.Printf("ProxyOverride 设置为: %s", bypass)
 	}
 }

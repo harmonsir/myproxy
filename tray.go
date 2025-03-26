@@ -137,12 +137,12 @@ func onReady() {
 			select {
 			case <-toggleProxy.ClickedCh:
 				if trayState.SysProxyEnabled() {
-					disableWindowsSystemProxy()
+					onStopProxy()
 					trayState.Update(func(s *TrayStatus) {
 						s.SysProxy = false
 					})
 				} else {
-					enableWindowsSystemProxy()
+					onStartProxy()
 					trayState.Update(func(s *TrayStatus) {
 						s.SysProxy = true
 					})
@@ -157,7 +157,7 @@ func onReady() {
 }
 
 func onExit() {
-	disableWindowsSystemProxy()
+	onStopProxy()
 	os.Exit(0)
 }
 
@@ -198,4 +198,13 @@ func requestTrayStatusUpdate() {
 			s.Status = false
 		}
 	})
+}
+
+func onStartProxy() {
+	SetAllProxies()
+	SetProxyExceptions()
+}
+
+func onStopProxy() {
+	ClearAllProxies()
 }
