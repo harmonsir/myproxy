@@ -4,9 +4,6 @@ SwitchyOmega 已经太老了，用GPT写个proxy做Window下面的全局代理�
 
 **会自动根据IP进行学术上网。**
 
-### bug
-
-- socks5 client has issue
 
 ### build
 

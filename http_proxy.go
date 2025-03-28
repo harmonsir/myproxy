@@ -56,6 +56,10 @@ func handleHTTPConnect(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-	go transfer(conn, clientConn)
-	go transfer(clientConn, conn)
+
+	// 开始双向转发数据
+	done := make(chan struct{})
+	go transfer(conn, clientConn, done)
+	go transfer(clientConn, conn, done)
+	<-done
 }

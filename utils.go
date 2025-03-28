@@ -11,10 +11,11 @@ import (
 )
 
 // transfer 在两个连接之间传输数据
-func transfer(dst io.WriteCloser, src io.ReadCloser) {
+func transfer(dst io.WriteCloser, src io.ReadCloser, done chan struct{}) {
 	defer dst.Close()
 	defer src.Close()
 	io.Copy(dst, src)
+	done <- struct{}{}
 }
 
 // copyHeader 将响应头复制到目标 header 中
