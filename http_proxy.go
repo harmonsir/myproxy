@@ -25,6 +25,10 @@ func httpProxyHandler(w http.ResponseWriter, req *http.Request) {
 			return dialTarget(addr)
 		},
 	}
+
+	// ✅ 改写请求头
+	req.Header.Set("DNT", "1")
+
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
