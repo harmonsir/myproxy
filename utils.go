@@ -75,6 +75,12 @@ func resetWindowsProxy() {
 	}
 }
 
+func UpdateTraySysProxy(enabled bool) {
+	trayState.Update(func(s *TrayStatus) {
+		s.SysProxy = enabled
+	})
+}
+
 func enableWindowsSystemProxy() {
 	proxyAddress := fmt.Sprintf("127.0.0.1:%d", config.ListenPort)
 
@@ -88,7 +94,7 @@ func enableWindowsSystemProxy() {
 	if err := key.SetDWordValue("ProxyEnable", 1); err != nil {
 		log.Printf("设置 ProxyEnable 失败: %v", err)
 	} else {
-		trayState.Update(func(s *TrayStatus) { s.SysProxy = true })
+		UpdateTraySysProxy(true)
 		log.Printf("ProxyEnable 设置为 1")
 	}
 
@@ -110,7 +116,7 @@ func disableWindowsSystemProxy() {
 	if err := key.SetDWordValue("ProxyEnable", 0); err != nil {
 		log.Printf("禁用 ProxyEnable 失败: %v", err)
 	} else {
-		trayState.Update(func(s *TrayStatus) { s.SysProxy = false })
+		UpdateTraySysProxy(false)
 		log.Printf("ProxyEnable 设置为 0")
 	}
 }
