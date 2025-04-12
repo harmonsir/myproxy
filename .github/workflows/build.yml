@@ -51,12 +51,15 @@ jobs:
           name: proxy.exe
           path: .
 
+      - name: Set timestamp
+        run: echo "RELEASE_TIME=自动构建的最新版本：$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+
       - name: Create or update latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest Release
-          body: "自动构建的最新版本"
+          body: "${{ env.RELEASE_TIME }}"
           files: proxy.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
