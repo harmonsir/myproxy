@@ -31,14 +31,52 @@ type Config struct {
 
 var config Config
 
-// loadConfig 从用户目录下加载 YAML 配置文件
+// loadConfig 从用户目录下加载 YAML 配置文件，如果不存在则创建默认配置
 func loadConfig() error {
-	//home, err := os.UserHomeDir()
-	//if err != nil {
-	//	return err
-	//}
-	//configPath := filepath.Join(home, ".config", "myproxy", "config.yaml")
-	configPath := filepath.Join(".", "config.yaml")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("get home dir failed: %v", err)
+	}
+	configDir := filepath.Join(home, "myproxy")
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	// 如果不存在，则创建默认配置文件
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			return fmt.Errorf("failed to create config dir: %v", err)
+		}
+
+		defaultCfg := Config{
+			EnableWindowsProxy: false,
+			LocalMode:          "http",
+			ListenOn:           "127.0.0.1",
+			ListenPort:         1080,
+			RemoteMode:         "socks5",
+			DefaultTarget: struct {
+				IP   string `yaml:"ip" json:"ip"`
+				Port int    `yaml:"port" json:"port"`
+			}{
+				IP:   "127.0.0.1",
+				Port: 12345,
+			},
+			ChinaIps:      "",
+			HeaderRewrite: 0,
+			FakeIP:        "31.13.77.33",
+		}
+
+		data, err := yaml.Marshal(&defaultCfg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal default config: %v", err)
+		}
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write default config: %v", err)
+		}
+		log.Printf("🌱 Created default config at %s", configPath)
+		config = defaultCfg
+		return nil
+	}
+
+	// 否则读取现有配置
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %v", configPath, err)
@@ -47,6 +85,7 @@ func loadConfig() error {
 		return fmt.Errorf("failed to parse config file: %v", err)
 	}
 
+	// 设置缺省值
 	if config.FakeIP == "" {
 		config.FakeIP = "31.13.77.33"
 	}
