@@ -15,6 +15,8 @@ func main() {
 
 	currentListenAddr = getListenAddr(config)
 
+	UpdateTray(StatusStarting)
+
 	go startConfigWebServer()
 	go startTray()
 	go startProxy()
@@ -30,6 +32,7 @@ func main() {
 		select {
 		case <-proxyRestartChan:
 			log.Println("🔁 Restarting proxy service...")
+			UpdateTray(StatusRestarting)
 			go startProxy()
 		}
 	}
@@ -41,15 +44,16 @@ func startProxy() {
 	addr := getListenAddr(config)
 	currentListenAddr = addr
 
-	requestTrayStatusUpdate() // 托盘状态更新（统一调用）
-
 	mode := strings.ToLower(config.LocalMode)
 	switch mode {
 	case "http":
+		UpdateTray(StatusRunningHTTP)
 		startHTTPProxy()
 	case "socks5":
+		UpdateTray(StatusRunningSocks5)
 		startSocks5Proxy()
 	default:
+		UpdateTray(StatusError)
 		log.Printf("Unsupported local_mode: %s", config.LocalMode)
 	}
 }

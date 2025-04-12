@@ -1,14 +1,11 @@
 package main
 
 import (
-	_ "embed"
+	"github.com/getlantern/systray"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
-
-	"github.com/getlantern/systray"
 )
 
 var iconData = []byte{
@@ -46,6 +43,16 @@ var iconData = []byte{
 	0x6e, 0x44, 0x4b, 0xd6, 0xd3, 0x82, 0x48, 0x00, 0x00, 0x00, 0x00, 0x49,
 	0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 }
+
+type ProxyStatus string
+
+const (
+	StatusStarting      ProxyStatus = "starting"
+	StatusRunningHTTP   ProxyStatus = "running_http"
+	StatusRunningSocks5 ProxyStatus = "running_socks5"
+	StatusRestarting    ProxyStatus = "restarting"
+	StatusError         ProxyStatus = "error"
+)
 
 type TrayStatus struct {
 	Tooltip  string
@@ -110,11 +117,9 @@ func onReady() {
 	statusItem.Disable()
 
 	toggleProxy = systray.AddMenuItem("系统代理状态", "点击切换系统代理")
-
 	openConf := systray.AddMenuItem("打开配置页面", "http://localhost:8081")
 	quit := systray.AddMenuItem("退出程序", "关闭程序")
 
-	// 状态监听并更新 UI
 	go func() {
 		for status := range trayState.Channel() {
 			systray.SetTooltip(status.Tooltip)
@@ -131,21 +136,16 @@ func onReady() {
 		}
 	}()
 
-	// 菜单交互监听
 	go func() {
 		for {
 			select {
 			case <-toggleProxy.ClickedCh:
 				if trayState.SysProxyEnabled() {
 					onStopProxy()
-					trayState.Update(func(s *TrayStatus) {
-						s.SysProxy = false
-					})
+					trayState.Update(func(s *TrayStatus) { s.SysProxy = false })
 				} else {
 					onStartProxy()
-					trayState.Update(func(s *TrayStatus) {
-						s.SysProxy = true
-					})
+					trayState.Update(func(s *TrayStatus) { s.SysProxy = true })
 				}
 			case <-openConf.ClickedCh:
 				openBrowser("http://localhost:8081")
@@ -180,21 +180,32 @@ func openBrowser(url string) {
 	}
 }
 
-func requestTrayStatusUpdate() {
-	mode := strings.ToLower(config.LocalMode)
+func UpdateTray(status ProxyStatus) {
 	trayState.Update(func(s *TrayStatus) {
-		switch mode {
-		case "http":
+		switch status {
+		case StatusStarting:
+			s.Tooltip = "正在启动代理..."
+			s.Title = "状态: 启动中..."
+			s.Status = false
+		case StatusRunningHTTP:
 			s.Tooltip = "运行中（HTTP 模式）"
 			s.Title = "状态: 运行中（HTTP）"
 			s.Status = true
-		case "socks5":
+		case StatusRunningSocks5:
 			s.Tooltip = "运行中（SOCKS5 模式）"
 			s.Title = "状态: 运行中（SOCKS5）"
 			s.Status = true
-		default:
+		case StatusRestarting:
+			s.Tooltip = "正在重启代理服务..."
+			s.Title = "状态: 正在重启中..."
+			s.Status = false
+		case StatusError:
 			s.Tooltip = "运行失败"
 			s.Title = "状态: 模式错误"
+			s.Status = false
+		default:
+			s.Tooltip = "未知状态"
+			s.Title = "状态: 未知"
 			s.Status = false
 		}
 	})
