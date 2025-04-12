@@ -12,10 +12,11 @@ import (
 
 // Config 定义了配置文件结构
 type Config struct {
-	EnableWindowsProxy bool   `yaml:"enable_windows_proxy" json:"enable_windows_proxy"`
-	LocalMode          string `yaml:"local_mode" json:"local_mode"`
-	ListenOn           string `yaml:"listen_on" json:"listen_on"`
-	ListenPort         int    `yaml:"listen_port" json:"listen_port"`
+	EnableWindowsProxy bool `yaml:"enable_windows_proxy" json:"enable_windows_proxy"`
+
+	LocalMode  string `yaml:"local_mode" json:"local_mode"`
+	ListenOn   string `yaml:"listen_on" json:"listen_on"`
+	ListenPort int    `yaml:"listen_port" json:"listen_port"`
 
 	RemoteMode    string `yaml:"remote_mode" json:"remote_mode"`
 	DefaultTarget struct {
@@ -23,7 +24,9 @@ type Config struct {
 		Port int    `yaml:"port" json:"port"`
 	} `yaml:"default_target" json:"default_target"`
 
-	ChinaIps string `yaml:"china_ips" json:"china_ips"`
+	ChinaIps      string `yaml:"china_ips" json:"china_ips"`
+	HeaderRewrite int    `yaml:"header_rewrite" json:"header_rewrite"` // 0=不改，1=全改，2=局域网不改
+	FakeIP        string `yaml:"fake_ip" json:"fake_ip"`               // 伪装的IP地址，默认31.13.77.33
 }
 
 var config Config
@@ -43,6 +46,11 @@ func loadConfig() error {
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return fmt.Errorf("failed to parse config file: %v", err)
 	}
+
+	if config.FakeIP == "" {
+		config.FakeIP = "31.13.77.33"
+	}
+
 	return nil
 }
 
@@ -82,6 +90,26 @@ func isDirectTarget(host string) bool {
 	for _, ip := range ips {
 		if isIPInRanges(ip) {
 			return true
+		}
+	}
+	return false
+}
+
+func isPrivateIP(ip net.IP) bool {
+	privateCIDRs := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+	for _, cidr := range privateCIDRs {
+		if _, ipnet, err := net.ParseCIDR(cidr); err == nil {
+			if ipnet.Contains(ip) {
+				return true
+			}
 		}
 	}
 	return false
