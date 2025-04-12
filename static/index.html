@@ -151,6 +151,26 @@
 
         <!-- 单栏设置 -->
         <div class="full-width">
+            <div class="form-grid">
+                <div class="col">
+                    <!-- 请求头重写设置 -->
+                    <label>请求头模式 (Header Rewrite Mode):
+                        <select v-model="config.header_rewrite">
+                            <option :value="0">0 - 不修改 (Do not modify)</option>
+                            <option :value="1">1 - 全局修改 (Modify all)</option>
+                            <option :value="2">2 - 局域网不修改 (Skip LAN)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="col">
+                    <label>伪造 IP (Fake IP for headers):
+                        <input placeholder="默认 31.13.77.33" v-model="config.fake_ip"/>
+                    </label>
+                </div>
+            </div>
+
+
             <label>IP 白名单 (IP Whitelist, ipmap):
                 <textarea placeholder="一行一个 IP (One IP per line)" rows="4" v-model="ipmapText"></textarea>
             </label>
@@ -179,8 +199,11 @@
           remote_mode: "socks5",
           default_target: { ip: "", port: 0 },
           ipmap: [],
-          china_ips: ""
+          china_ips: "",
+          header_rewrite: 1,
+          fake_ip: "31.13.77.33"
         })
+
         const ipmapText = ref("")
         const message = ref("")
 
@@ -190,6 +213,9 @@
             const data = await res.json()
             if (!data.default_target) data.default_target = { ip: "", port: 0 }
             if (!data.ipmap) data.ipmap = []
+            if (!data.fake_ip) data.fake_ip = "31.13.77.33"
+            if (data.header_rewrite === undefined) data.header_rewrite = 1
+
             config.value = data
             ipmapText.value = data.ipmap.join("\n")
           } catch (err) {
