@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log"
 	"net"
@@ -77,7 +78,7 @@ func httpProxyHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	// 非 CONNECT 请求，使用自定义 transport，通过 dialTarget 建立连接
 	transport := &http.Transport{
-		Dial: func(network, addr string) (net.Conn, error) {
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialTarget(addr)
 		},
 	}

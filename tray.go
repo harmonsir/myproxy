@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sync"
 )
 
 var iconData = []byte{
@@ -67,34 +68,45 @@ type TrayState struct {
 	status   bool
 	sysProxy bool
 	ch       chan TrayStatus
+	mu       sync.Mutex
 }
 
+// NewTrayState 创建一个带缓冲的 TrayState
 func NewTrayState() *TrayState {
 	return &TrayState{ch: make(chan TrayStatus, 1)}
 }
 
+// Update 在互斥锁保护下更新状态，并异步推送到通道
 func (ts *TrayState) Update(updateFn func(s *TrayStatus)) {
+	// 构造 Snapshot
+	ts.mu.Lock()
 	current := TrayStatus{
 		Tooltip:  ts.tooltip,
 		Title:    ts.title,
 		Status:   ts.status,
 		SysProxy: ts.sysProxy,
 	}
+	// 应用修改函数
 	updateFn(&current)
-
+	// 持久化回底层状态
 	ts.tooltip = current.Tooltip
 	ts.title = current.Title
 	ts.status = current.Status
 	ts.sysProxy = current.SysProxy
-
+	ts.mu.Unlock()
+	// 推送到通道
 	ts.ch <- current
 }
 
+// Channel 返回状态更新通道
 func (ts *TrayState) Channel() <-chan TrayStatus {
 	return ts.ch
 }
 
+// SysProxyEnabled 线程安全地查询系统代理状态
 func (ts *TrayState) SysProxyEnabled() bool {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	return ts.sysProxy
 }
 
