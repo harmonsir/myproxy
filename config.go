@@ -101,7 +101,7 @@ func loadConfig() error {
 //	}
 //}
 
-func initChinaIPs() {
+func InitChinaIPs() {
 	if config.ChinaIps != "" {
 		if err := loadIPRangesCached(config.ChinaIps); err != nil {
 			log.Fatalf("Failed to load IP ranges: %v", err)
@@ -109,8 +109,8 @@ func initChinaIPs() {
 	}
 }
 
-// isDirectTarget 判断目标地址是否在直连白名单中
-func isDirectTarget(host string) bool {
+// IsDirectTarget 判断目标地址是否在直连白名单中
+func IsDirectTarget(host string) bool {
 	hostOnly, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostOnly = host // fallback to full string if no port
@@ -134,7 +134,7 @@ func isDirectTarget(host string) bool {
 	return false
 }
 
-func isPrivateIP(ip net.IP) bool {
+func IsPrivateIP(ip net.IP) bool {
 	privateCIDRs := []string{
 		"10.0.0.0/8",
 		"172.16.0.0/12",

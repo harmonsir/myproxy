@@ -212,10 +212,10 @@ func UpdateTray(status ProxyStatus) {
 }
 
 func onStartProxy() {
-	SetAllProxies()
-	SetProxyExceptions()
+	EnableAllProxies()
+	EnableBypassList()
 }
 
 func onStopProxy() {
-	ClearAllProxies()
+	DisableAllProxies()
 }

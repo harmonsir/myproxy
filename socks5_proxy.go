@@ -104,8 +104,8 @@ func handleSocks5Connection(conn net.Conn) {
 	}
 	// 开始双向转发数据
 	done := make(chan struct{})
-	go transfer(remoteConn, conn, done) // 客户端 → 远程
-	go transfer(conn, remoteConn, done) // 远程 → 客户端
+	go transferData(remoteConn, conn, done) // 客户端 → 远程
+	go transferData(conn, remoteConn, done) // 远程 → 客户端
 	// 等其中一个方向断开，就结束
 	<-done
 }

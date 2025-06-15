@@ -1,4 +1,4 @@
-module myproxy
+module github.com/harmonsir/myproxy
 
 go 1.24
 

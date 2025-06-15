@@ -39,7 +39,7 @@ func shouldRewriteHeader(host string) bool {
 	if config.HeaderRewrite == 2 {
 		hostOnly, _, _ := net.SplitHostPort(host)
 		if ip := net.ParseIP(hostOnly); ip != nil {
-			return !isPrivateIP(ip)
+			return !IsPrivateIP(ip)
 		}
 		// 若是域名，解析 IP 并判断
 		ips, err := net.LookupIP(hostOnly)
@@ -47,7 +47,7 @@ func shouldRewriteHeader(host string) bool {
 			return true // 保守起见，失败时仍进行修改
 		}
 		for _, ip := range ips {
-			if !isPrivateIP(ip) {
+			if !IsPrivateIP(ip) {
 				return true
 			}
 		}
@@ -93,7 +93,7 @@ func httpProxyHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-	copyHeader(w.Header(), resp.Header)
+	copyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
@@ -121,7 +121,7 @@ func handleHTTPConnect(w http.ResponseWriter, req *http.Request) {
 
 	// 开始双向转发数据
 	done := make(chan struct{})
-	go transfer(conn, clientConn, done)
-	go transfer(clientConn, conn, done)
+	go transferData(conn, clientConn, done)
+	go transferData(clientConn, conn, done)
 	<-done
 }

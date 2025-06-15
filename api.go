@@ -47,7 +47,7 @@ func updateConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initChinaIPs()
+	InitChinaIPs()
 	if config.ChinaIps != "" {
 		loadIPRangesCached(config.ChinaIps)
 	}

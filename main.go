@@ -11,7 +11,7 @@ func main() {
 	if err := loadConfig(); err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
-	initChinaIPs()
+	InitChinaIPs()
 
 	currentListenAddr = getListenAddr(config)
 
@@ -22,10 +22,10 @@ func main() {
 	go startProxy()
 
 	if strings.ToLower(config.LocalMode) != "socks5" && config.EnableWindowsProxy {
-		go enableWindowsSystemProxy()
-		go setProxyOverride()
+		go EnableSystemProxy()
+		go EnableBypassList()
 	} else {
-		go disableWindowsSystemProxy()
+		go DisableSystemProxy()
 	}
 
 	for {
