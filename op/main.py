@@ -70,7 +70,9 @@ class ProxyApp(metaclass=Singleton):
 
             # 如果配置了启用Windows代理，则设置系统代理
             if config.enable_windows_proxy:
-                self._enable_proxy()
+                ProxyAPI.enable_proxy(self.proxy_addr)
+            else:
+                logger.warning("配置中未启用Windows代理")
 
             # 初始化系统托盘
             self.tray_manager = TrayManager(self)
@@ -150,29 +152,12 @@ class ProxyApp(metaclass=Singleton):
             logger.error(f"停止过程中出错: {e}")
             logger.error(traceback.format_exc())
 
-    def toggle_system_proxy(self):
-        """切换系统代理状态"""
-        try:
-            config = self.config_manager.get_config()
-            if config.enable_windows_proxy:
-                self._enable_proxy()
-                logger.info("✓ 系统代理已启用")
-            else:
-                self._disable_proxy()
-                logger.info("✓ 系统代理已禁用")
-        except Exception as e:
-            logger.error(f"切换系统代理失败: {e}")
-
     # 添加系统代理相关方法
     def _enable_proxy(self):
         """启用系统代理"""
         try:
-            config = self.config_manager.get_config()
-            if config.enable_windows_proxy:
-                ProxyAPI.enable_proxy(self.proxy_addr)
-                logger.info("✓ 系统代理已启用")
-            else:
-                logger.warning("配置中未启用Windows代理")
+            ProxyAPI.enable_proxy(self.proxy_addr)
+            logger.info("✓ 系统代理已启用")
         except Exception as e:
             logger.error(f"启用系统代理失败: {e}")
 

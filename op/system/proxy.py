@@ -64,20 +64,15 @@ class WindowsProxyManager(metaclass=Singleton):
             return False
 
         try:
-            is_enable_win_http = False
-            is_enable_win_proxy = False
             # 启用WinHTTP代理（使用netsh命令）
+            is_enable_win_http = False
             # if not self._enable_winhttp_proxy(proxy_address):
             #     logger.error("启用WinHTTP代理失败")
             #     is_enable_win_http = True
             # return False
 
             # 启用系统级代理（注册表方式）
-            if self._enable_system_proxy_registry(proxy_address):
-                is_enable_win_proxy = True
-            else:
-                logger.error("启用系统级代理失败")
-                # return False
+            is_enable_win_proxy = self._enable_system_proxy_registry(proxy_address)
 
             logger.info(
                 f"代理已启用: {proxy_address} | "
@@ -100,23 +95,20 @@ class WindowsProxyManager(metaclass=Singleton):
             logger.warning("系统代理功能仅在Windows上可用")
             return False
 
-        try:
-            # 禁用WinHTTP代理（使用netsh命令）
-            # if not self._disable_winhttp_proxy():
-            #     logger.error("禁用WinHTTP代理失败")
-            # return False
+        is_disable_win_http = False
 
-            # 禁用系统级代理（注册表方式）
-            if not self._disable_system_proxy_registry():
-                logger.error("禁用系统级代理失败")
-                # return False
-            else:
-                logger.info("系统代理已禁用")
-            return True
+        # 禁用WinHTTP代理（使用netsh命令）
+        # if not self._disable_winhttp_proxy():
+        #     logger.error("禁用WinHTTP代理失败")
+        # return False
+        # 禁用系统级代理（注册表方式）
+        is_disable_win_proxy = self._disable_system_proxy_registry()
 
-        except Exception as e:
-            logger.error(f"禁用系统代理失败: {e}")
-            return False
+        flag = any([is_disable_win_http, is_disable_win_proxy])
+        logger.info(
+            f"禁用代理结果: {flag} => WinHTTP代理: {is_disable_win_http} | 系统级代理: {is_disable_win_proxy}"
+        )
+        return flag
 
     def _enable_winhttp_proxy(self, proxy_address: str) -> bool:
         """
@@ -192,15 +184,18 @@ class WindowsProxyManager(metaclass=Singleton):
         """
         try:
             # 打开注册表
-            RegEditor.set_value(REG_IE_KEY, "ProxyEnable", 1, REG_DWORD)
-            RegEditor.set_value(REG_IE_KEY, "ProxyServer", proxy_address, REG_SZ)
-            RegEditor.set_value(REG_IE_KEY, "ProxyOverride", DEFAULT_OVERRIDE, REG_SZ)
+            result = all([
+                RegEditor.set_value(REG_IE_KEY, "ProxyEnable", 1, REG_DWORD),
+                RegEditor.set_value(REG_IE_KEY, "ProxyServer", proxy_address, REG_SZ),
+                RegEditor.set_value(REG_IE_KEY, "ProxyOverride", DEFAULT_OVERRIDE, REG_SZ),
+            ])
 
-            # 通知系统设置已更改
-            self._notify_system_change()
+            if result:
+                # 通知系统设置已更改
+                self._notify_system_change()
 
-            logger.info(f"系统级代理已启用: {proxy_address}")
-            return True
+                logger.info(f"系统级代理已启用: {proxy_address}")
+                return True
 
         except Exception as e:
             logger.error(f"启用系统级代理失败: {e}")
@@ -214,17 +209,15 @@ class WindowsProxyManager(metaclass=Singleton):
         """
         try:
             # 打开注册表
-            RegEditor.set_value(REG_IE_KEY, "ProxyEnable", 0, REG_DWORD)
-
-            # 通知系统设置已更改
-            self._notify_system_change()
-
-            logger.info("系统级代理已禁用")
-            return True
-
+            result = RegEditor.set_value(REG_IE_KEY, "ProxyEnable", 0, REG_DWORD)
+            if result:
+                # 通知系统设置已更改
+                self._notify_system_change()
+                logger.info("系统级代理已禁用")
+                return True
         except Exception as e:
             logger.error(f"禁用系统级代理失败: {e}")
-            return False
+        return False
 
     def get_system_proxy_status(self) -> dict:
         """
@@ -296,15 +289,6 @@ class WindowsProxyManager(metaclass=Singleton):
         """
         status = self.get_system_proxy_status()
         return status.get("enabled", False)
-
-    def get_proxy_server(self) -> str:
-        """
-        获取当前代理服务器地址
-        
-        :return: 代理服务器地址
-        """
-        status = self.get_system_proxy_status()
-        return status.get("server", "")
 
 
 # 全局代理管理器实例

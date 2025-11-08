@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from op.system import ProxyAPI
 from op.utils.logger import ui_logger as logger
 from op.utils.singleton import Singleton
 
@@ -90,6 +91,22 @@ class ConsoleManager:
             return False
 
 
+class ConsoleCtrl(ConsoleManager):
+    def __init__(self):
+        self._console_visible = True  # 控制台初始状态
+
+    def _toggle_console(self, icon: "pystray.Icon", item) -> None:
+        """切换控制台显示/隐藏"""
+        if self._console_visible:
+            if ConsoleManager.hide_console():
+                self._console_visible = False
+                logger.info("控制台窗口已隐藏")
+        else:
+            if ConsoleManager.show_console():
+                self._console_visible = True
+                logger.info("控制台窗口已显示")
+
+
 def _get_resource_path(filename: str) -> Path:
     """获取资源文件路径（处理打包后的路径）"""
     try:
@@ -104,7 +121,7 @@ def _get_resource_path(filename: str) -> Path:
     return base_path / filename
 
 
-class TrayManager(metaclass=Singleton):
+class TrayManager(ConsoleCtrl, metaclass=Singleton):
     """系统托盘管理器"""
 
     def __init__(self, proxy_app):
@@ -113,13 +130,14 @@ class TrayManager(metaclass=Singleton):
         Args:
             proxy_app: 代理应用程序实例
         """
+        super().__init__()
+
         self.proxy_app = proxy_app
         self.icon = None
         self.running = False
         self.status_proxy_enabled = False
         self.status_mode = "stopped"
         self.status_text = "代理服务已停止"
-        self._console_visible = True  # 控制台初始状态
 
         if not TRAY_AVAILABLE:
             logger.warning("pystray 或 PIL 未安装，系统托盘功能将不可用")
@@ -134,12 +152,21 @@ class TrayManager(metaclass=Singleton):
         if not TRAY_AVAILABLE:
             return False
 
+        self.status_proxy_enabled = ProxyAPI.is_proxy_enabled()
+        self.update_status(self.status_proxy_enabled)
+
         try:
             image = self._load_icon()
 
+            status_item = pystray.MenuItem(
+                text=lambda item: f"{self.status_text}",
+                action=None,  # 只是显示，不需要点击动作
+                enabled=False
+            )
+
             # 创建菜单
             menu = pystray.Menu(
-                pystray.MenuItem("代理状态", self._show_status, enabled=False),
+                status_item,
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("切换系统代理", self._toggle_system_proxy),
                 pystray.MenuItem("打开配置页面", self._open_config_page),
@@ -179,17 +206,6 @@ class TrayManager(metaclass=Singleton):
             logger.error(f"运行系统托盘失败: {e}")
         finally:
             self.running = False
-
-    def _toggle_console(self, icon: pystray.Icon, item) -> None:
-        """切换控制台显示/隐藏"""
-        if self._console_visible:
-            if ConsoleManager.hide_console():
-                self._console_visible = False
-                logger.info("控制台窗口已隐藏")
-        else:
-            if ConsoleManager.show_console():
-                self._console_visible = True
-                logger.info("控制台窗口已显示")
 
     def _load_icon(self) -> Image.Image:
         """加载托盘图标"""
@@ -264,12 +280,12 @@ class TrayManager(metaclass=Singleton):
                 self.status_text = "代理服务已停止"
 
         # 更新图标
-        if self.icon:
-            try:
-                self.icon.icon = self._create_icon()
-                self.icon.title = self.status_text
-            except Exception as e:
-                logger.error(f"更新托盘状态失败: {e}")
+        # if self.icon:
+        #     try:
+        #         self.icon.icon = self._create_icon()
+        #         self.icon.title = self.status_text
+        #     except Exception as e:
+        #         logger.error(f"更新托盘状态失败: {e}")
 
         logger.info(f"托盘状态更新: {self.status_text}")
 
@@ -284,8 +300,6 @@ class TrayManager(metaclass=Singleton):
 
             # 在Windows上显示消息框
             if os.name == "nt":  # Windows
-                import ctypes
-
                 ctypes.windll.user32.MessageBoxW(0, status_msg, "代理状态", 0)
             else:
                 logger.info(status_msg)
@@ -296,10 +310,15 @@ class TrayManager(metaclass=Singleton):
     def _toggle_system_proxy(self, icon, item) -> None:
         """切换系统代理"""
         try:
-            if hasattr(self.proxy_app, "toggle_system_proxy"):
-                self.proxy_app.toggle_system_proxy()
-                self.status_proxy_enabled = not self.status_proxy_enabled
-                self.update_status(self.status_proxy_enabled, self.status_mode)
+            if self.status_proxy_enabled:
+                self.proxy_app._disable_proxy()
+                self.update_status(self.status_proxy_enabled, "stopped")
+                logger.info("✓ 系统代理已禁用")
+            else:
+                self.proxy_app._enable_proxy()
+                self.update_status(self.status_proxy_enabled, "running")
+                logger.info("✓ 系统代理已启用")
+            self.status_proxy_enabled = not self.status_proxy_enabled
         except Exception as e:
             logger.error(f"切换系统代理失败: {e}")
 
@@ -319,7 +338,7 @@ class TrayManager(metaclass=Singleton):
 
             # 停止代理服务
             if hasattr(self.proxy_app, "stop"):
-                self.proxy_app.stop()
+                self.proxy_app.stop()  # TODO:bugfix stop never await
 
             # 停止托盘
             if self.icon:

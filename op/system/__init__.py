@@ -1,8 +1,8 @@
-from .proxy import WindowsProxyManager
+from .proxy import ProxyAPI
 from .registry import RegEditor
 
 
 __all__ = [
-    "WindowsProxyManager",
+    "ProxyAPI",
     "RegEditor"
 ]
