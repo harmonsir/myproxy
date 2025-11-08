@@ -4,7 +4,6 @@ Windows注册表操作模块 - 简化且健壮的版本
 使用 winreg.OpenKeyEx 和 winreg.CreateKeyEx 遵循最佳实践。
 """
 
-import logging
 import winreg
 from typing import Any, Literal, Tuple
 
@@ -87,7 +86,7 @@ class RegistryManager(metaclass=Singleton):
             with winreg.CreateKeyEx(hkey, subkey, 0, access_mask) as key:
                 winreg.SetValueEx(key, value_name, 0, value_type, value)
 
-            logger.info(f"成功设置注册表值: {key_path}\\{value_name}")
+            logger.debug(f"成功设置注册表值: {key_path}\\{value_name}")
             return True
         except ValueError as e:
             logger.error(f"路径解析错误: {e}")
@@ -156,13 +155,9 @@ class RegistryManager(metaclass=Singleton):
             return False
 
 
+# Windows注册表操作模块
 RegEditor = RegistryManager()
-
-# --- 示例用法 (需要运行环境支持 logger 模块) ---
 if __name__ == "__main__":
-    # 简单的日志配置
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
     test_path = join_key_path("HKCU", r"Software\MyTestAppForRegManager")
     test_name = "TestValue"
 

@@ -5,19 +5,18 @@ ProxyApp - 本地代理工具 (Python版本) - 增强版
 解决日志输出问题的版本
 """
 import signal
-import sys
 import traceback
-from asyncio import create_task, gather, run as async_run
+from asyncio import gather, run as async_run
+from os import _exit as os_exit
 from typing import Callable, Optional
 
 from op.config import RunTimeConfig
 from op.config.manager import ConfigManager
 from op.proxy.core import ProxyCore
-from op.system.proxy import ProxyAPI
-from op.ui.tray import TrayManager
-from op.ui.web import WebInterface
+from op.system import ProxyAPI
+from op.ui import TrayManager, WebInterface
+from op.utils import Singleton
 from op.utils.logger import op_logger as logger
-from op.utils.singleton import Singleton
 
 
 class ProxyApp(metaclass=Singleton):
@@ -77,9 +76,11 @@ class ProxyApp(metaclass=Singleton):
             # 初始化系统托盘
             self.tray_manager = TrayManager(self)
             self.tray_manager.initialize()
+            self.tray_manager.set_hidden()
 
             logger.info("ProxyApp 应用初始化完成")
-
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             logger.error(f"初始化失败: {e}")
             logger.error(traceback.format_exc())
@@ -103,7 +104,8 @@ class ProxyApp(metaclass=Singleton):
 
             logger.debug("async_tasks: %s", [str(f.__name__) for f, *_ in self.async_tasks])
             await gather(*[f(*_args, **_kwargs) for f, _args, _kwargs in self.async_tasks])
-
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             traceback.print_exc()
             logger.error(f"启动失败: {e}")
@@ -147,7 +149,8 @@ class ProxyApp(metaclass=Singleton):
                 logger.info("✓ 配置管理器已停止")
 
             logger.info("ProxyApp已完全停止")
-
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             logger.error(f"停止过程中出错: {e}")
             logger.error(traceback.format_exc())
@@ -169,6 +172,10 @@ class ProxyApp(metaclass=Singleton):
         except Exception as e:
             logger.error(f"禁用系统代理失败: {e}")
 
+    def notify_stop(self):
+        async_run(self.stop())
+        os_exit(0)  # 直接终止整个进程（最干净、不会卡住）
+
 
 async def core_main():
     """主函数"""
@@ -178,8 +185,8 @@ async def core_main():
 
     # 设置信号处理
     def signal_handler(signum, frame, *args, **kwargs):
-        logger.info(f"收到信号 {signum}，正在关闭...")
-        create_task(app.stop())
+        logger.info(f"[signal_handler] 收到信号 {signum}，正在关闭...")
+        app.notify_stop()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -187,13 +194,12 @@ async def core_main():
     try:
         await app.start()
     except KeyboardInterrupt:
-        logger.info("收到中断信号")
+        logger.warning("收到中断信号")
     except Exception as e:
         logger.error(f"运行时错误: {e}")
         logger.error(traceback.format_exc())
     finally:
-        await app.stop()
-        logger.info("ProxyApp已关闭")
+        app.notify_stop()
 
 
 if __name__ == "__main__":
@@ -203,4 +209,4 @@ if __name__ == "__main__":
         print("\n程序被用户中断")
     except Exception as e:
         print(f"程序异常退出: {e}")
-        sys.exit(1)
+        os_exit(1)

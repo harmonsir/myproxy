@@ -1,11 +1,10 @@
 """
 系统托盘模块
 """
-import asyncio
 import ctypes
-import os
 import sys
 import webbrowser
+from asyncio import to_thread
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -106,6 +105,10 @@ class ConsoleCtrl(ConsoleManager):
                 self._console_visible = True
                 logger.info("控制台窗口已显示")
 
+    def set_hidden(self):
+        ConsoleManager.hide_console()
+        self._console_visible = False
+
 
 def _get_resource_path(filename: str) -> Path:
     """获取资源文件路径（处理打包后的路径）"""
@@ -137,11 +140,14 @@ class TrayManager(ConsoleCtrl, metaclass=Singleton):
         self.running = False
         self.status_proxy_enabled = False
         self.status_mode = "stopped"
-        self.status_text = "代理服务已停止"
 
         if not TRAY_AVAILABLE:
             logger.warning("pystray 或 PIL 未安装，系统托盘功能将不可用")
             return
+
+    @property
+    def status_text(self):
+        return "代理服务运行中" if self.status_proxy_enabled else "代理服务已停止"
 
     def initialize(self) -> bool:
         """创建系统托盘图标
@@ -189,13 +195,14 @@ class TrayManager(ConsoleCtrl, metaclass=Singleton):
 
             logger.info("系统托盘创建成功")
             return True
-
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             logger.error(f"创建系统托盘失败: {e}")
             return False
 
     async def start(self) -> None:
-        await asyncio.to_thread(self._run_tray)
+        await to_thread(self._run_tray)
 
     def _run_tray(self):
         """运行托盘图标"""
@@ -269,16 +276,6 @@ class TrayManager(ConsoleCtrl, metaclass=Singleton):
         self.status_proxy_enabled = proxy_enabled
         self.status_mode = mode
 
-        if status_text:
-            self.status_text = status_text
-        else:
-            if proxy_enabled:
-                self.status_text = "代理服务运行中"
-            elif mode == "running":
-                self.status_text = "代理服务已启动"
-            else:
-                self.status_text = "代理服务已停止"
-
         # 更新图标
         # if self.icon:
         #     try:
@@ -289,36 +286,30 @@ class TrayManager(ConsoleCtrl, metaclass=Singleton):
 
         logger.info(f"托盘状态更新: {self.status_text}")
 
-    def _show_status(self, icon, item) -> None:
-        """显示状态信息"""
-        try:
-            status_msg = f"""代理状态信息:
-            
-服务状态: {self.status_text}
-系统代理: {"启用" if self.status_proxy_enabled else "禁用"}
-"""
+    def stop(self) -> None:
+        """停止托盘服务"""
+        if self.icon:
+            try:
+                self.icon.stop()
+            except Exception as e:
+                logger.error(f"停止托盘失败: {e}")
 
-            # 在Windows上显示消息框
-            if os.name == "nt":  # Windows
-                ctypes.windll.user32.MessageBoxW(0, status_msg, "代理状态", 0)
-            else:
-                logger.info(status_msg)
-
-        except Exception as e:
-            logger.error(f"显示状态失败: {e}")
+        self.running = False
+        logger.info("系统托盘已停止")
 
     def _toggle_system_proxy(self, icon, item) -> None:
         """切换系统代理"""
         try:
+            new_status = not self.status_proxy_enabled
             if self.status_proxy_enabled:
                 self.proxy_app._disable_proxy()
-                self.update_status(self.status_proxy_enabled, "stopped")
+                self.update_status(new_status, "stopped")
                 logger.info("✓ 系统代理已禁用")
             else:
                 self.proxy_app._enable_proxy()
-                self.update_status(self.status_proxy_enabled, "running")
+                self.update_status(new_status, "running")
                 logger.info("✓ 系统代理已启用")
-            self.status_proxy_enabled = not self.status_proxy_enabled
+            self.status_proxy_enabled = new_status
         except Exception as e:
             logger.error(f"切换系统代理失败: {e}")
 
@@ -333,40 +324,22 @@ class TrayManager(ConsoleCtrl, metaclass=Singleton):
 
     def _quit(self, icon, item) -> None:
         """退出应用程序"""
-        try:
-            logger.info("正在退出应用程序...")
+        self.proxy_app.notify_stop()
 
-            # 停止代理服务
-            if hasattr(self.proxy_app, "stop"):
-                self.proxy_app.stop()  # TODO:bugfix stop never await
-
-            # 停止托盘
-            if self.icon:
-                self.icon.stop()
-
-            logger.info("应用程序已退出")
-
-        except Exception as e:
-            logger.error(f"退出应用程序失败: {e}")
-        finally:
-            # 直接终止整个进程（最干净、不会卡住）
-            os._exit(0)
-
-    def stop(self) -> None:
-        """停止托盘服务"""
-        if self.icon:
-            try:
-                self.icon.stop()
-            except Exception as e:
-                logger.error(f"停止托盘失败: {e}")
-
-        self.running = False
-        logger.info("系统托盘已停止")
-
-    def is_running(self) -> bool:
-        """检查托盘是否正在运行
-        
-        Returns:
-            bool: 是否正在运行
-        """
-        return self.running
+    #     def _show_status(self, icon, item) -> None:
+    #         """显示状态信息"""
+    #         try:
+    #             status_msg = f"""代理状态信息:
+    #
+    # 服务状态: {self.status_text}
+    # 系统代理: {"启用" if self.status_proxy_enabled else "禁用"}
+    # """
+    #
+    #             # 在Windows上显示消息框
+    #             if os.name == "nt":  # Windows
+    #                 ctypes.windll.user32.MessageBoxW(0, status_msg, "代理状态", 0)
+    #             else:
+    #                 logger.info(status_msg)
+    #
+    #         except Exception as e:
+    #             logger.error(f"显示状态失败: {e}")

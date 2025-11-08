@@ -8,9 +8,9 @@ from sys import getdefaultencoding
 from typing import Optional
 from winreg import REG_DWORD, REG_SZ
 
-from op.system.registry import HKEY_CU, join_key_path, RegEditor
 from op.utils.logger import system_logger as logger
 from op.utils.singleton import Singleton
+from .registry import HKEY_CU, join_key_path, RegEditor
 
 
 address_patterns = [
