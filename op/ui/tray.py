@@ -90,6 +90,20 @@ class ConsoleManager:
             return False
 
 
+def _get_resource_path(filename: str) -> Path:
+    """获取资源文件路径（处理打包后的路径）"""
+    try:
+        # PyInstaller 创建临时文件夹，将路径存储在 _MEIPASS 中
+        base_path = Path(sys._MEIPASS)
+    except AttributeError:
+        # 正常运行时
+        base_path = Path(__file__).parent
+
+    if "ui" in str(base_path):
+        base_path = base_path.parent / "static"
+    return base_path / filename
+
+
 class TrayManager(metaclass=Singleton):
     """系统托盘管理器"""
 
@@ -177,23 +191,10 @@ class TrayManager(metaclass=Singleton):
                 self._console_visible = True
                 logger.info("控制台窗口已显示")
 
-    def _get_resource_path(self, filename: str) -> Path:
-        """获取资源文件路径（处理打包后的路径）"""
-        try:
-            # PyInstaller 创建临时文件夹，将路径存储在 _MEIPASS 中
-            base_path = Path(sys._MEIPASS)
-        except AttributeError:
-            # 正常运行时
-            base_path = Path(__file__).parent
-
-        if "ui" in str(base_path):
-            base_path = base_path.parent / "static"
-        return base_path / filename
-
     def _load_icon(self) -> Image.Image:
         """加载托盘图标"""
         try:
-            icon_path = self._get_resource_path(Config.ICON_FILENAME)
+            icon_path = _get_resource_path(Config.ICON_FILENAME)
             if icon_path.exists():
                 image = Image.open(icon_path)
                 logger.info(f"成功加载图标: {icon_path}")

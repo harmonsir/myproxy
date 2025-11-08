@@ -4,7 +4,6 @@ Web界面模块
 """
 
 import json
-from pathlib import Path
 from typing import Any, Dict
 
 import uvicorn
@@ -12,6 +11,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from op.config.schema import Config
+from op.ui.tray import _get_resource_path
 from op.utils.async_fs import aread_text
 from op.utils.logger import ui_logger as logger
 from op.utils.singleton import Singleton
@@ -32,7 +32,7 @@ class WebInterface(metaclass=Singleton):
         @self.app.get("/", response_class=HTMLResponse)
         async def get_index():
             """返回主页面"""
-            return await aread_text(Path("static/index.html"))
+            return await aread_text(_get_resource_path("index.html"))
 
         @self.app.get("/api/config")
         async def get_config():
