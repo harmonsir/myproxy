@@ -36,9 +36,16 @@ class RoutingDecision(metaclass=Singleton):
                     self.ipmap_rules[src.strip()] = dst.strip()
 
     def should_bypass(self, hostname: str, ip: str = None) -> bool:
-        """判断是否应该绕过代理"""
+        """判断是否应该绕过代理
+            规则：
+                .cn结尾，bypass
+                china ips，bypass
+        """
 
         # 检查IP映射规则
+        if hostname.endswith(".cn"):
+            return True
+
         if hostname in self.ipmap_rules:
             mapped_ip = self.ipmap_rules[hostname]
             if mapped_ip == "direct":
@@ -114,7 +121,7 @@ class RoutingManager(metaclass=Singleton):
             - route_type: "direct" 或 "proxy"
             - route_params: 路由参数字典
         """
-        logger.debug(f"+++ decide_routing -> client_ip:{client_ip} | hostname:{hostname} | port:{port}")
+        # logger.debug(f"+++ decide_routing -> client_ip:{client_ip} | hostname:{hostname} | port:{port}")
 
         if self.should_bypass_proxy(hostname):
             return "direct", {}
